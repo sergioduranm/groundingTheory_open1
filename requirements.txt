@@ -13,3 +13,6 @@ numpy>=1.24.0
 pytest>=7.0.0
 black>=23.0.0
 flake8>=6.0.0
+python-dotenv
+sentence-transformers
+scikit-learn
