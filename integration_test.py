@@ -74,11 +74,20 @@ def run_integration_test():
     
     # Paso B: El SynthesizerAgent recibe los códigos generados
     logger.info("🤝 Pasando la posta al SynthesizerAgent...")
-    synthesizer.process_batch(codigos_para_sintetizar)
+    translation_map = synthesizer.process_batch(codigos_para_sintetizar)
+    
+    # Mostrar el mapa de traducción
+    logger.info(f"📋 Mapa de traducción generado: {translation_map}")
+    
+    # Mostrar resumen de unificación
+    unique_codes = set(translation_map.values())
+    logger.info(f"📊 Resumen: {len(codigos_para_sintetizar)} códigos originales → {len(unique_codes)} códigos únicos")
+    logger.info(f"🔄 Reducción: {len(codigos_para_sintetizar) - len(unique_codes)} códigos unificados")
     
     logger.info("--- PRUEBA DE INTEGRACIÓN FINALIZADA ---")
     logger.info("Revisa el archivo 'data/codebook.INTEGRATION-TEST.json' para validar el resultado.")
     logger.info("Deberías ver un nuevo codebook con los conceptos extraídos del insight, ya consolidados.")
+    logger.info(f"El translation map está listo para ser usado en la unificación de resultados finales.")
 
 if __name__ == "__main__":
     run_integration_test()

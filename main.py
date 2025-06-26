@@ -9,6 +9,7 @@ utilizando el ADK de Google Generative AI.
 
 import logging
 from typing import Optional
+from orchestrator import Orchestrator
 
 # Configuración de logging
 logging.basicConfig(
@@ -18,28 +19,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
+def main():
     """
-    Función principal del sistema de agentes.
-    
-    Esta función inicializa y ejecuta el sistema de agentes para
-    análisis cualitativo de datos.
+    Punto de entrada principal para ejecutar el pipeline de procesamiento de insights.
     """
-    logger.info("Iniciando el Sistema de Agentes para Codificación Abierta.")
-    
     try:
-        # TODO: Implementar la lógica principal del sistema
-        # - Cargar configuración
-        # - Inicializar agentes
-        # - Procesar datos
-        # - Generar resultados
-        
-        logger.info("Sistema inicializado correctamente.")
-        
+        # 1. Crear una instancia del orquestador
+        #    La inicialización se encarga de cargar dependencias y configuración.
+        pipeline_orchestrator = Orchestrator()
+
+        # 2. Ejecutar el pipeline completo
+        pipeline_orchestrator.run_pipeline()
+
     except Exception as e:
-        logger.error(f"Error durante la inicialización del sistema: {e}")
-        raise
+        print(f"❌ Ocurrió un error fatal durante la ejecución del pipeline: {e}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
