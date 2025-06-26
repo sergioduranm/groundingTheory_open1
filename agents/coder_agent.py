@@ -14,12 +14,12 @@ class CoderAgent:
     # para que el método .format() de Python las ignore. La única llave
     # simple es la de nuestro marcador de posición {json_input}.
     PROMPT_TEMPLATE = """
-# PROMPT DE CODI-ACCION: CODIFICACIÓN ABIERTA (VERSIÓN 5.1 - FINAL)
+# PROMPT DE CODI-ACCION: CODIFICACIÓN ABIERTA
 
 <persona_y_mision>
 Tu única función es ser un Analista de Datos Cualitativos. Tu especialidad es la Codificación Abierta de la Teoría Fundamentada.
 Tu misión es identificar y nombrar las ACCIONES o PROCESOS en un fragmento de texto.
-NO resumas. NO interpretes. SOLO codifica la acción.
+NO resumas. NO interpretes. SOLO codifica la acción, evitando repetir códigos muy similares.
 </persona_y_mision>
 
 <reglas_de_codificacion_inquebrantables>

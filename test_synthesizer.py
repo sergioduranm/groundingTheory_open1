@@ -1,73 +1,45 @@
+# test_synthesizer.py
+
 import os
-import json
+from dotenv import load_dotenv
 from agents.synthesizer_agent import SynthesizerAgent
+from agents.codebook_repository import CodebookRepository
+from agents.embedding_client import EmbeddingClient
 
-def print_codebook_summary(agent: SynthesizerAgent):
-    """Función de ayuda para imprimir un resumen legible del codebook."""
-    print(f"  📊 Resumen del Codebook ({len(agent.codebook['codes'])} códigos únicos):")
-    if not agent.codebook['codes']:
-        print("    -> El codebook está vacío.")
-        return
-    # Ordenar por label para una visualización consistente
-    sorted_codes = sorted(agent.codebook['codes'], key=lambda x: x['label'])
-    for code in sorted_codes:
-        print(f"    - \"{code['label']}\" (count: {code['count']})")
-    print("-" * 30)
+def run_test():
 
-def main():
-    """
-    Script principal para probar el SynthesizerAgent de forma aislada y controlada.
-    """
-    print("🚀 Iniciando prueba del SynthesizerAgent...")
+    print("--- INICIANDO PRUEBA DEL SYNTHESIZER AGENT ---")
     
-    # --- PREPARACIÓN ---
-    # Para una prueba limpia, eliminamos el codebook anterior si existe.
-    codebook_file = "data/codebook.json"
-    if os.path.exists(codebook_file):
-        os.remove(codebook_file)
-        print(f"🗑️  Archivo de codebook anterior eliminado para una prueba limpia.")
+    # 1. Cargar configuración
+    load_dotenv()
+    google_api_key = os.getenv("GOOGLE_API_KEY")
+    if not google_api_key:
+        raise ValueError("La variable de entorno google_api_key no está configurada. Asegúrate de tener un archivo .env")
 
-    # Instanciar el agente. Usaremos un umbral ligeramente más bajo para capturar "UX"
-    # como un duplicado de "user experience" y demostrar la funcionalidad.
-    agent = SynthesizerAgent(codebook_path=codebook_file, similarity_threshold=0.50)
-    print_codebook_summary(agent)
-
-    # --- PRUEBA 1: Primer lote de códigos únicos ---
-    print("\n🧪 PRUEBA 1: Procesando un lote inicial de códigos.")
-    batch_1 = [
-        "Experimentando desvalorización", 
-        "Buscando reconocimiento profesional", 
-        "Percibiendo falta de oportunidades"
-    ]
-    print(f"  -> Lote de entrada: {batch_1}")
-    agent.process_batch(batch_1)
-    print_codebook_summary(agent)
+    # 2. Inyección de Dependencias
+    # Apuntaremos a un codebook de prueba para no afectar el real
+    test_repo = CodebookRepository(codebook_path="data/codebook.TEST.json")
+    client = EmbeddingClient(api_key=google_api_key)
+    # Usamos un umbral de 0.85 para la prueba, puede ser más estricto (0.90) en producción
+    synthesizer = SynthesizerAgent(repository=test_repo, client=client, similarity_threshold=0.85)
     
-    # --- PRUEBA 2: Lote con duplicados exactos y semánticos ---
-    print("\n🧪 PRUEBA 2: Procesando lote con duplicados exactos y semánticos.")
-    batch_2 = [
-        "Sintiendo que no me valoran",          # Duplicado semántico de "Experimentando desvalorización"
-        "Buscando reconocimiento profesional",  # Duplicado exacto
-        "Identificando un techo de cristal"    # Código nuevo
+    # 3. Datos de prueba
+    batch_de_nuevos_codigos = [
+        "expresando frustración por falta de reconocimiento", 
+        "sintiendo que las ideas propias no son valoradas",  # Duplicado semántico del anterior
+        "dificultades con la nueva plataforma de software",   # Código nuevo
+        "los empleados tienen problemas para usar la herramienta crm", # Duplicado semántico del anterior
+        "expresando frustración por falta de reconocimiento",  # Duplicado exacto
+        "sensación de no ser apreciado en el equipo"          # Duplicado semántico de los dos primeros
     ]
-    print(f"  -> Lote de entrada: {batch_2}")
-    agent.process_batch(batch_2)
-    print_codebook_summary(agent)
+    print(f"\nProcesando lote de prueba con {len(batch_de_nuevos_codigos)} códigos...")
 
-    # --- PRUEBA 3: Lote con más variantes y códigos nuevos ---
-    print("\n🧪 PRUEBA 3: Procesando un lote mixto final.")
-    batch_3 = [
-        "Sintiendo que mi trabajo es invisible", # Duplicado semántico de "Experimentando desvalorización"
-        "Buscando validación de mis superiores", # Duplicado semántico de "Buscando reconocimiento"
-        "Proponiendo mejoras al sistema",      # Código nuevo
-        "Comunicando frustración al equipo"    # Código nuevo
-    ]
-    print(f"  -> Lote de entrada: {batch_3}")
-    agent.process_batch(batch_3)
-    print_codebook_summary(agent)
-
-    print("\n✅ Prueba del SynthesizerAgent completada.")
+    # 4. Ejecución
+    synthesizer.process_batch(batch_de_nuevos_codigos)
+    
+    print("\n--- PRUEBA FINALIZADA ---")
+    print(f"Revisa el archivo 'data/codebook.TEST.json' para ver el resultado.")
+    # Deberías ver solo 2 códigos únicos al final, cada uno con un contador de 3.
 
 if __name__ == "__main__":
-    main()
-
+    run_test()
