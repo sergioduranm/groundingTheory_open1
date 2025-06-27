@@ -1,0 +1,84 @@
+{
+    "project_name": "Coach Financiero IA Research",
+    "research_questions": [
+      "¿Qué hábitos, falta de competencias, creencias y barreras externas frenan el bienestar financiero?",
+      "¿Qué estrategias han demostrado mejorar los hábitos, conocimientos, habilidades y actitudes financieras?",
+      "¿Qué oportunidades y riesgos introduce el uso de IA generativa como coach financiero?",
+      "¿Cómo se debe generar y evolucionar una relación de confianza de las personas con el sistema bancario y el coach financiero?"
+    ],
+    "methodological_directives": {
+      "grounded_theory_variant": "Strauss & Corbin (Enfoque Paradigmático)",
+      "traceability_requirement": "Cada conclusión del análisis axial debe estar explícitamente vinculada a los IDs de evidencia que la soportan."
+    },
+    "seed_categories": [
+      {
+        "category_name": "Formación de hábitos",
+        "description": "Evalúa si la herramienta ayuda a iniciar, mantener y reforzar hábitos positivos mediante gatillos, repetición, recompensas o recordatorios.",
+        "keywords": [
+          "gatillos", "recordatorios", "recompensas", "habit-stacking",
+          "micro-hábitos", "nudge", "streaks", "autoseguimiento",
+          "intenciones de implementación", "loop de recompensa", "gamificación", "consistencia",
+          "paciencia", "compasión propia", "autocuidado", "perdón personal", "aceptación"
+        ]
+      },
+      {
+        "category_name": "Consecución de metas",
+        "description": "Observa si la experiencia guía a la persona hacia objetivos concretos, con claridad de propósito, retroalimentación o progreso visible.",
+        "keywords": [
+          "metas SMART", "milestones", "retroalimentación continua", "visualización de progreso",
+          "accountability", "dispositivos de compromiso", "motivación intrínseca",
+          "motivación extrínseca", "paneles de avance", "OKR", "plan de acción",
+          "revisión de objetivos", "breakdown de tareas",
+          "sueños personales", "esperanza", "celebración de logros", "sentido de logro", "autoestima"
+        ]
+      },
+      {
+        "category_name": "Desarrollo de competencias",
+        "description": "Proceso intencional y continuo mediante el cual una persona integra conocimientos, habilidades y actitudes para afrontar retos reales.",
+        "keywords": [
+          "práctica deliberada", "aprendizaje experiencial", "scaffolding",
+          "metacognición", "transferencia de habilidades", "retroalimentación formativa",
+          "crecimiento progresivo", "habilidades socioemocionales", "evaluación auténtica",
+          "ciclo de reflexión", "mentalidad de crecimiento", "maestría", "dominio incremental",
+          "vulnerabilidad", "humildad", "curiosidad", "autoconfianza", "resiliencia emocional"
+        ]
+      },
+      {
+        "category_name": "Generación de confianza",
+        "description": "La confianza emerge de la fiabilidad, la transparencia y la seguridad: cumplimiento consistente, comunicación honesta y protección activa de la información del usuario.",
+        "keywords": [
+          "fiabilidad", "transparencia", "seguridad", "privacidad de datos",
+          "explicabilidad", "ética de IA", "equidad", "control del usuario",
+          "señales de confianza", "cumplimiento normativo", "reputación", "autenticidad",
+          "consistencia operativa", "protección de datos",
+          "cercanía emocional", "coherencia", "respeto", "empatía genuina", "calidez humana"
+        ]
+      },
+      {
+        "category_name": "Acompañamiento",
+        "description": "Estar presente con intención y escucha profunda, creando un espacio donde la persona se sienta vista y fortalecida para avanzar con autonomía.",
+        "keywords": [
+          "escucha activa", "empatía", "presencia", "mentoría",
+          "co-creación", "empoderamiento", "seguridad psicológica",
+          "entrevista motivacional", "soporte par", "facilitación",
+          "mapeo de viaje", "preguntas reflexivas", "coaching colaborativo",
+          "comprensión", "validación emocional", "paciencia", "aceptación incondicional",
+          "acompañamiento afectivo", "cuidado"
+        ]
+      },
+      {
+        "category_name": "Gestión integral del bienestar",
+        "description": "Enfoque sistémico que articula salud física, emocional, social y más, utilizando datos personalizados y experiencias adaptativas.",
+        "keywords": [
+          "bienestar holístico", "salud física", "salud mental",
+          "bienestar financiero", "capital social", "resiliencia",
+          "balance espiritual", "analítica de estilo de vida",
+          "intervenciones integradas", "autoconocimiento", "prevención",
+          "métricas de bienestar", "personalización", "sostenibilidad",
+          "armonía", "plenitud emocional", "gratitud", "conexión humana",
+          "significado", "equilibrio vital"
+        ]
+      }
+    ]
+  }
+  
