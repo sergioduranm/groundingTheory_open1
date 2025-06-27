@@ -7,6 +7,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from agents.embedding_client import EmbeddingClient
 from agents.codebook_repository import CodebookRepository
+from models.data_models import Codebook, Code
 
 # Usamos el mismo logger configurado en el cliente para consistencia
 logger = logging.getLogger(__name__)
@@ -22,35 +23,35 @@ class SynthesizerAgent:
         self.client = client
         self.similarity_threshold = similarity_threshold
         
-        self.codebook = self.repository.load()
-        # Asumiendo que el modelo de embedding de Google usa 768 dimensiones.
-        self.embedding_dim = self.codebook.get('metadata', {}).get('embedding_dim', 768) 
-        
+        # El repositorio ahora devuelve un objeto Codebook validado.
+        self.codebook: Codebook = self.repository.load()
+        self.embedding_dim = 768 # Valor por defecto, se puede sobreescribir si hay metadata
+
         self._ensure_metadata_structure()
         self._rebuild_internal_caches()
         logger.info("✅ SynthesizerAgent listo.")
 
     def _ensure_metadata_structure(self):
-        """Asegura que la estructura de metadata exista en el codebook."""
-        if 'metadata' not in self.codebook:
-            self.codebook['metadata'] = {}
-        
-        if 'embedding_dim' not in self.codebook['metadata']:
-            self.codebook['metadata']['embedding_dim'] = self.embedding_dim
+        """Asegura que la clave 'embedding_dim' exista en la metadata del codebook."""
+        if 'embedding_dim' not in self.codebook.metadata:
+            self.codebook.metadata['embedding_dim'] = self.embedding_dim
+        else:
+            # Si existe, tomamos el valor del codebook.
+            self.embedding_dim = self.codebook.metadata['embedding_dim']
             
-        logger.info(f"📊 Metadata inicializada: embedding_dim={self.codebook['metadata']['embedding_dim']}")
+        logger.info(f"📊 Metadata inicializada: embedding_dim={self.embedding_dim}")
 
     def _rebuild_internal_caches(self):
         """Construye cachés en memoria para un rendimiento O(1) y O(N) rápido."""
         logger.info("⚡️ Construyendo cachés internos para acceso rápido...")
-        self.codes_by_id: Dict[str, Dict] = {c['id']: c for c in self.codebook.get('codes', [])}
-        self.label_to_id: Dict[str, str] = {c['label']: c['id'] for c in self.codebook.get('codes', [])}
+        self.codes_by_id: Dict[str, Code] = {c.id: c for c in self.codebook.codes}
+        self.label_to_id: Dict[str, str] = {c.label: c.id for c in self.codebook.codes}
         
-        codes_with_embeddings = [c for c in self.codebook.get('codes', []) if 'embedding' in c and isinstance(c['embedding'], list) and len(c['embedding']) > 0]
+        codes_with_embeddings = [c for c in self.codebook.codes if c.embedding and isinstance(c.embedding, list) and len(c.embedding) > 0]
         
         if codes_with_embeddings:
-            self.ordered_code_ids = [c['id'] for c in codes_with_embeddings]
-            self.embedding_matrix = np.array([c['embedding'] for c in codes_with_embeddings])
+            self.ordered_code_ids = [c.id for c in codes_with_embeddings]
+            self.embedding_matrix = np.array([c.embedding for c in codes_with_embeddings])
         else:
             self.ordered_code_ids = []
             self.embedding_matrix = np.empty((0, self.embedding_dim))
@@ -80,7 +81,7 @@ class SynthesizerAgent:
             self._process_new_codes_sequentially(codes_to_create, translation_map)
 
         self.repository.save(self.codebook)
-        logger.info(f"✅ Lote procesado. Codebook tiene ahora {len(self.codebook['codes'])} códigos únicos.")
+        logger.info(f"✅ Lote procesado. Codebook tiene ahora {len(self.codebook.codes)} códigos únicos.")
         
         # Devolvemos el mapa de traducción completo.
         return translation_map
@@ -110,18 +111,19 @@ class SynthesizerAgent:
                 translation_map[label] = existing_id
             else:
                 new_id = f"code_{uuid.uuid4()}"
-                new_code_obj = {"id": new_id, "label": label, "count": 1, "embedding": embedding_list}
+                # Creamos un objeto Code validado
+                new_code_obj = Code(id=new_id, label=label, count=1, embedding=embedding_list)
                 self._add_single_code_to_cache(new_code_obj, embedding)
                 # Se creó un código nuevo. Registramos la traducción.
                 translation_map[label] = new_id
                 
-    def _add_single_code_to_cache(self, code: Dict, embedding: np.ndarray):
-        """Añade un único código nuevo a todos los cachés en memoria."""
-        logger.info(f"➕ Añadiendo nuevo código único al codebook: '{code['label']}'")
-        self.codebook['codes'].append(code)
-        self.codes_by_id[code['id']] = code
-        self.label_to_id[code['label']] = code['id']
-        self.ordered_code_ids.append(code['id'])
+    def _add_single_code_to_cache(self, code: Code, embedding: np.ndarray):
+        """Añade un único objeto Code nuevo a todos los cachés en memoria."""
+        logger.info(f"➕ Añadiendo nuevo código único al codebook: '{code.label}'")
+        self.codebook.codes.append(code)
+        self.codes_by_id[code.id] = code
+        self.label_to_id[code.label] = code.id
+        self.ordered_code_ids.append(code.id)
         
         if self.embedding_matrix.shape[0] == 0:
             self.embedding_matrix = embedding.reshape(1, -1)
@@ -143,7 +145,12 @@ class SynthesizerAgent:
     def _update_code_count(self, code_id: str):
         """Incrementa el contador de un código existente."""
         if code_id in self.codes_by_id:
-            logger.info(f"🔄 Código duplicado ('{self.codes_by_id[code_id]['label']}') encontrado. Incrementando contador para ID: {code_id}")
-            self.codes_by_id[code_id]['count'] += 1
+            code_to_update = self.codes_by_id[code_id]
+            logger.info(f"🔄 Código duplicado ('{code_to_update.label}') encontrado. Incrementando contador para ID: {code_id}")
+            # Aseguramos que el atributo count exista antes de incrementar
+            if code_to_update.count is not None:
+                code_to_update.count += 1
+            else:
+                code_to_update.count = 2 # Si no existía, se encontró una vez antes y ahora otra
         else:
             logger.warning(f"Advertencia de integridad: Se intentó actualizar el ID '{code_id}' no encontrado en caché.")

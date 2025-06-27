@@ -1,0 +1,132 @@
+[
+    {
+        "category_id": "cat_1",
+        "category_name": "Sobrecarga de Trabajo y Agotamiento",
+        "description": "Agrupa las experiencias relacionadas con la gestión de una carga de trabajo excesiva, la presión por entregas rápidas, la extensión de la jornada laboral y la sensación inminente de agotamiento físico y mental.",
+        "code_assignments": [
+            {
+                "code_id": "code_32fccaa6-2aad-47c9-9e6a-7b8d06715b7f"
+            },
+            {
+                "code_id": "code_00f2d793-c535-45c2-b98d-d70604850062"
+            },
+            {
+                "code_id": "code_97a9e1c6-826b-4143-8012-484cd1bff0bc"
+            },
+            {
+                "code_id": "code_ce697a45-d91a-416f-a051-8ebf60d0d063"
+            }
+        ]
+    },
+    {
+        "category_id": "cat_2",
+        "category_name": "Desarrollo Profesional y Crecimiento Bloqueado",
+        "description": "Esta categoría engloba las barreras que impiden el avance y la mejora de habilidades y conocimientos, incluyendo la obsolescencia de herramientas, la falta de oportunidades de desarrollo y los obstáculos para el crecimiento.",
+        "code_assignments": [
+            {
+                "code_id": "code_1638f496-8b6a-4d34-bf6b-ea939d919237"
+            },
+            {
+                "code_id": "code_b98d523e-ba45-4d04-8f8c-f44733b01136"
+            },
+            {
+                "code_id": "code_28c7f548-633a-460a-9678-4ece9ded7740"
+            }
+        ]
+    },
+    {
+        "category_id": "cat_3",
+        "category_name": "Obstáculos Sistémicos y de Procesos",
+        "description": "Esta categoría aborda las ineficiencias, falta de transparencia y rigidez en los procesos y estructuras organizacionales que dificultan la operación y la percepción de equidad.",
+        "code_assignments": [
+            {
+                "code_id": "code_96e4af84-4536-43ac-ae85-b0ee1e477af2"
+            },
+            {
+                "code_id": "code_93fc397a-f14a-4c43-a308-ac8053fa887c"
+            },
+            {
+                "code_id": "code_8bd06420-04c4-459c-a330-0cb8c2eae76a"
+            },
+            {
+                "code_id": "code_ed9f02d1-d7e8-4109-9300-6682b708a0cb"
+            },
+            {
+                "code_id": "code_8a44c734-11c2-4086-8e73-aa275bfcdb00"
+            },
+            {
+                "code_id": "code_0fed7e7c-761a-41d8-bbf1-ca11f7e3f15a"
+            },
+            {
+                "code_id": "code_ce697a45-d91a-416f-a051-8ebf60d0d063"
+            },
+            {
+                "code_id": "code_0bd56afa-eee8-4315-bfda-60bb4bd7d7b6"
+            }
+        ]
+    },
+    {
+        "category_id": "cat_4",
+        "category_name": "Bienestar Personal y Relacional Deteriorado",
+        "description": "Engloba las experiencias que afectan negativamente el estado emocional, la percepción de sí mismo y las relaciones interpersonales, incluyendo la toxicidad laboral, la falta de armonía y la comunicación ineficaz.",
+        "code_assignments": [
+            {
+                "code_id": "code_d5a07852-5640-40eb-8c3d-af050305e091"
+            },
+            {
+                "code_id": "code_ff78f302-1b0f-457f-9b9c-f65ce78c16a5"
+            },
+            {
+                "code_id": "code_807be034-d850-4480-a2ff-e2bbeeffa8ec"
+            },
+            {
+                "code_id": "code_55131cd5-bcd9-4bd6-9842-ecf0514b88bb"
+            }
+        ]
+    },
+    {
+        "category_id": "cat_5",
+        "category_name": "Percepción de Inequidad y Falta de Reconocimiento",
+        "description": "Incluye las percepciones sobre la justicia en las recompensas, la equidad salarial, el reconocimiento del esfuerzo y la competencia destructiva en el entorno laboral.",
+        "code_assignments": [
+            {
+                "code_id": "code_65272c22-27ce-4f87-8646-dae81b3b5bf7"
+            },
+            {
+                "code_id": "code_c91cab51-5b0f-4ce9-9e67-3e723d8f18e3"
+            },
+            {
+                "code_id": "code_c7d37ae5-7dc1-4635-a0ca-e785a435cfd2"
+            },
+            {
+                "code_id": "code_aa711750-9759-4bd6-bdb2-71d52d0d7266"
+            }
+        ]
+    },
+    {
+        "category_id": "cat_6",
+        "category_name": "Ineficiencias y Barreras Operativas",
+        "description": "Agrupa las experiencias relacionadas con la lentitud en los procesos, la dificultad en la colaboración y la gestión de información o comunicación ineficiente que impactan la operatividad y la productividad.",
+        "code_assignments": [
+            {
+                "code_id": "code_5b2b1f58-5ac1-479b-9e93-081888834e6c"
+            },
+            {
+                "code_id": "code_0bd56afa-eee8-4315-bfda-60bb4bd7d7b6"
+            },
+            {
+                "code_id": "code_eef5ed54-d4b0-463f-9cb1-ebaa56342729"
+            }
+        ]
+    },
+    {
+        "category_id": "cat_7",
+        "category_name": "Generación de Confianza y Relaciones",
+        "description": "La confianza emerge de la fiabilidad, la transparencia y la seguridad: cumplimiento consistente, comunicación honesta y protección activa de la información del usuario.",
+        "code_assignments": [
+            {
+                "code_id": "code_55131cd5-bcd9-4bd6-9842-ecf0514b88bb"
+            }
+        ]
+    }
+]

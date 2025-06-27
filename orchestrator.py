@@ -105,10 +105,25 @@ class Orchestrator:
         coded_insights = []
         all_code_labels = []
         for insight in raw_insights:
-            # El CoderAgent procesa un insight y devuelve un dict con los códigos
-            generated_codes_dict = self.coder.generate_codes(insight)
-            # Combinamos el insight original con los códigos generados
-            coded_insight = {**insight, **generated_codes_dict}
+            # El CoderAgent ahora devuelve un objeto Pydantic validado.
+            coding_result = self.coder.generate_codes(insight)
+            
+            # Verificamos si hubo un error durante la codificación.
+            if coding_result.error:
+                logging.warning(f"Error al codificar insight {coding_result.id_fragmento}: {coding_result.error}. Se omitirá del resultado.")
+                # Creamos una entrada parcial para mantener la trazabilidad si es necesario
+                coded_insight = {
+                    "id": coding_result.id_fragmento,
+                    "text": coding_result.fragmento_original,
+                    "codigos_abiertos": [],
+                    "error": coding_result.error
+                }
+            else:
+                # Si no hay error, convertimos el resultado a un diccionario para fusionarlo.
+                generated_codes_dict = coding_result.model_dump()
+                # Combinamos el insight original con los códigos generados.
+                coded_insight = {**insight, **generated_codes_dict}
+
             coded_insights.append(coded_insight)
             all_code_labels.extend(coded_insight.get("codigos_abiertos", []))
 

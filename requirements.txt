@@ -18,3 +18,9 @@ python-dotenv
 sentence-transformers
 scikit-learn
 tenacity
+
+# Librerías para LLMs y manejo de entorno
+google-generativeai
+pydantic
+fastapi
+uvicorn

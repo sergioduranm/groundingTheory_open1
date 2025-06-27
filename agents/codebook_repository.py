@@ -1,15 +1,17 @@
-import json
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from pydantic import ValidationError
+
+from models.data_models import Codebook
+from utils.file_utils import load_json_file, save_json_file
 
 # Usamos el mismo logger configurado para consistencia
 logger = logging.getLogger(__name__)
 
 class CodebookRepository:
     """
-    Repositorio para manejar la persistencia del codebook en formato JSON.
-    Permite cargar y guardar el codebook desde/hacia un archivo.
+    Repositorio robusto para manejar la persistencia del codebook.
+    Utiliza Pydantic para la validación de datos y centraliza la I/O.
     """
     
     def __init__(self, codebook_path: str = "data/codebook.json"):
@@ -25,45 +27,38 @@ class CodebookRepository:
         # Crear el directorio padre si no existe
         self.codebook_path.parent.mkdir(parents=True, exist_ok=True)
     
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> Codebook:
         """
-        Carga el codebook desde el archivo JSON.
-        Si el archivo no existe, retorna una estructura de codebook vacía.
+        Carga y valida el codebook desde el archivo JSON.
+        Si el archivo no existe o está corrupto, retorna un codebook vacío.
+        """
+        if not self.codebook_path.exists():
+            logger.info(f"📝 Archivo de codebook no existe, creando estructura vacía: {self.codebook_path}")
+            return Codebook(codes=[])
         
-        Returns:
-            Dict conteniendo la estructura del codebook con la lista de códigos
-        """
         try:
-            if self.codebook_path.exists():
-                logger.info(f"📖 Cargando codebook desde: {self.codebook_path}")
-                with open(self.codebook_path, 'r', encoding='utf-8') as f:
-                    codebook = json.load(f)
-                logger.info(f"✅ Codebook cargado exitosamente con {len(codebook.get('codes', []))} códigos")
-                return codebook
-            else:
-                logger.info(f"📝 Archivo de codebook no existe, creando estructura vacía: {self.codebook_path}")
-                return {"codes": []}
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ Error al decodificar JSON del codebook: {e}")
-            logger.info("📝 Retornando estructura de codebook vacía debido al error")
-            return {"codes": []}
-        except Exception as e:
-            logger.error(f"❌ Error inesperado al cargar codebook: {e}")
-            logger.info("📝 Retornando estructura de codebook vacía debido al error")
-            return {"codes": []}
+            logger.info(f"📖 Cargando codebook desde: {self.codebook_path}")
+            data = load_json_file(str(self.codebook_path))
+            codebook = Codebook.model_validate(data)
+            logger.info(f"✅ Codebook cargado y validado exitosamente con {len(codebook.codes)} códigos")
+            return codebook
+        except (ValidationError, Exception) as e:
+            logger.error(f"❌ Error al cargar o validar el codebook: {e}. Se creará un codebook nuevo.")
+            return Codebook(codes=[])
     
-    def save(self, codebook: Dict[str, Any]) -> None:
+    def save(self, codebook: Codebook) -> None:
         """
-        Guarda el codebook en el archivo JSON.
+        Guarda un objeto Codebook validado en el archivo JSON.
         
         Args:
-            codebook: Diccionario conteniendo la estructura del codebook
+            codebook: El objeto Codebook a guardar.
         """
         try:
             logger.info(f"💾 Guardando codebook en: {self.codebook_path}")
-            with open(self.codebook_path, 'w', encoding='utf-8') as f:
-                json.dump(codebook, f, indent=2, ensure_ascii=False)
-            logger.info(f"✅ Codebook guardado exitosamente con {len(codebook.get('codes', []))} códigos")
+            # Convertimos el modelo Pydantic a un diccionario antes de guardarlo.
+            data_to_save = codebook.model_dump(mode='json')
+            save_json_file(str(self.codebook_path), data_to_save)
+            logger.info(f"✅ Codebook guardado exitosamente con {len(codebook.codes)} códigos")
         except Exception as e:
             logger.error(f"❌ Error al guardar codebook: {e}")
             raise 

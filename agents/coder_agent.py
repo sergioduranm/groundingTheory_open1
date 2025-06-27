@@ -1,6 +1,10 @@
 import google.generativeai as genai
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
+from pydantic import ValidationError
+
+from models.data_models import CodingResult
+from utils.file_utils import extract_json_from_text
 
 class CoderAgent:
     """
@@ -89,26 +93,23 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
         self.model = genai.GenerativeModel(model_name)
         print("🤖 CoderAgent inicializado con el modelo:", model_name)
 
-    def generate_codes(self, insight: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_codes(self, insight: Dict[str, Any]) -> CodingResult:
         """
-        Genera códigos para un único insight.
+        Genera códigos para un único insight y devuelve un objeto validado.
 
         Args:
             insight: Un diccionario que representa un insight, debe contener 'id' y 'text'.
 
         Returns:
-            Un diccionario que representa el objeto JSON completo con los códigos generados,
-            o un diccionario de error si falla el proceso.
+            Un objeto CodingResult validado, que incluye el resultado o un mensaje de error.
         """
         # 1. Preparar el JSON de entrada que espera la plantilla del prompt.
-        #    Creamos el objeto con la clave 'codigos_abiertos' vacía.
         input_data_for_prompt = {
             "id_fragmento": insight.get("id"),
             "fragmento_original": insight.get("text"),
             "codigos_abiertos": []
         }
         
-        # Lo convertimos a un string JSON con formato legible (indent=2)
         json_input_str = json.dumps(input_data_for_prompt, indent=2, ensure_ascii=False)
 
         # 2. Rellenar la plantilla principal con el string JSON que acabamos de crear.
@@ -118,24 +119,29 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
             # 3. Llamar a la API del modelo generativo.
             response = self.model.generate_content(final_prompt)
             
-            # 4. Limpiar y parsear la respuesta. El modelo puede devolver el JSON
-            #    dentro de un bloque de código markdown (```json ... ```).
-            response_text = response.text.strip()
-            if response_text.startswith("```json"):
-                response_text = response_text[7:-3].strip()
-            elif response_text.startswith("```"):
-                 response_text = response_text[3:-3].strip()
+            # 4. Usar nuestra utilidad experta para extraer y parsear el JSON de la respuesta.
+            parsed_output = extract_json_from_text(response.text)
 
+            if not parsed_output:
+                raise json.JSONDecodeError("La utilidad no pudo extraer un JSON válido de la respuesta.", response.text, 0)
             
-            # Convertir el string de respuesta JSON a un diccionario de Python.
-            parsed_output = json.loads(response_text)
-            return parsed_output
+            # 5. Validar la salida con Pydantic para asegurar la integridad de la estructura.
+            validated_output = CodingResult.model_validate(parsed_output)
+            return validated_output
 
+        except (ValidationError, json.JSONDecodeError) as e:
+            print(f"Error de validación o parseo para el insight {insight.get('id')}: {e}")
+            return CodingResult(
+                id_fragmento=insight.get("id"),
+                fragmento_original=insight.get("text"),
+                codigos_abiertos=[],
+                error=f"Fallo de validación/parseo: {e}"
+            )
         except Exception as e:
-            print(f"Error al procesar el insight {insight.get('id')}: {e}")
-            return {
-                "id_fragmento": insight.get("id"),
-                "fragmento_original": insight.get("text"),
-                "codigos_abiertos": [],
-                "error": str(e)
-            }
+            print(f"Error genérico al procesar el insight {insight.get('id')}: {e}")
+            return CodingResult(
+                id_fragmento=insight.get("id"),
+                fragmento_original=insight.get("text"),
+                codigos_abiertos=[],
+                error=str(e)
+            )
