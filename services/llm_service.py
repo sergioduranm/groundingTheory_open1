@@ -9,7 +9,7 @@ class LLMService:
     Gestiona las interacciones con la API de Google Gemini.
     Carga la clave de API desde variables de entorno y maneja la comunicación.
     """
-    def __init__(self, model: str = "gemini-1.5-pro-latest", temperature: float = 0.1):
+    def __init__(self, model: str = "gemini-2.5-flash-lite-preview-06-17", temperature: float = 0.1):
         """
         Configura el SDK de Google Gemini.
 
@@ -51,8 +51,26 @@ class LLMService:
         self.logger.debug(f"Invocando al modelo {self.model.model_name}...")
         try:
             response = self.model.generate_content(prompt)
+            
+            # Comprobación de seguridad antes de acceder al texto
+            if not response.candidates:
+                finish_reason = response.prompt_feedback.block_reason.name if response.prompt_feedback else "DESCONOCIDO"
+                self.logger.warning(
+                    f"La respuesta fue bloqueada ANTES de la generación. Razón: {finish_reason}. "
+                    "Esto suele ocurrir por un prompt que viola las políticas de seguridad."
+                )
+                return None
+
+            candidate = response.candidates[0]
+            if candidate.finish_reason.name != "STOP":
+                self.logger.warning(
+                    f"La generación del LLM no finalizó normalmente. Razón: {candidate.finish_reason.name}. "
+                    "Esto puede indicar que el contenido fue bloqueado por seguridad o por otras razones."
+                )
+                return None
+
             self.logger.debug("Respuesta recibida de Gemini exitosamente.")
-            return response.text
+            return candidate.content.parts[0].text
             
         except GoogleAPIError as e:
             self.logger.error(f"Error de API con Google: {e}")

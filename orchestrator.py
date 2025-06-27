@@ -6,9 +6,11 @@ import logging
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
+from services.llm_service import LLMService
 from agents.coder_agent import CoderAgent
 from agents.synthesizer_agent import SynthesizerAgent
 from agents.categorizer_agent import CategorizerAgent
+from agents.axial_analyst_agent import AxialAnalystAgent
 from agents.embedding_client import EmbeddingClient
 from agents.codebook_repository import CodebookRepository
 
@@ -33,10 +35,13 @@ class Orchestrator:
             raise ValueError("La variable de entorno GOOGLE_API_KEY no está configurada.")
 
         # --- Inyección de dependencias para los agentes ---
+        # 1. Crear una única instancia de los servicios compartidos
+        self.llm_service = LLMService()
         self.codebook_repo = CodebookRepository(codebook_path="data/codebook.json")
         self.embedding_client = EmbeddingClient(api_key=google_api_key)
         
-        self.coder = CoderAgent() 
+        # 2. Inyectar los servicios en los agentes que los necesitan
+        self.coder = CoderAgent(llm_service=self.llm_service) 
         
         self.synthesizer = SynthesizerAgent(
             repository=self.codebook_repo, 
@@ -44,7 +49,9 @@ class Orchestrator:
             similarity_threshold=0.90
         )
         
-        self.categorizer = CategorizerAgent()
+        self.categorizer = CategorizerAgent(llm_service=self.llm_service)
+        
+        self.axial_analyst = AxialAnalystAgent(llm_service=self.llm_service)
 
         # NUEVO: Definimos la ruta para los datos de entrada crudos
         self.raw_data_path = "data/data.jsonl"
@@ -111,10 +118,10 @@ class Orchestrator:
             # Verificamos si hubo un error durante la codificación.
             if coding_result.error:
                 logging.warning(f"Error al codificar insight {coding_result.id_fragmento}: {coding_result.error}. Se omitirá del resultado.")
-                # Creamos una entrada parcial para mantener la trazabilidad si es necesario
+                # Creamos una entrada parcial para mantener la trazabilidad y la consistencia del esquema.
                 coded_insight = {
-                    "id": coding_result.id_fragmento,
-                    "text": coding_result.fragmento_original,
+                    "id_fragmento": coding_result.id_fragmento,
+                    "fragmento_original": coding_result.fragmento_original,
                     "codigos_abiertos": [],
                     "error": coding_result.error
                 }
@@ -157,6 +164,14 @@ class Orchestrator:
             for item in enriched_data:
                 f.write(json.dumps(item, ensure_ascii=False) + '\n')
         
+        # --- FASE 6: ANÁLISIS AXIAL ---
+        logging.info("Iniciando la fase final de Análisis Axial...")
+        try:
+            self.axial_analyst.run()
+            logging.info("✅ Análisis Axial completado exitosamente.")
+        except Exception as e:
+            logging.error(f"❌ El Análisis Axial falló, pero el pipeline principal tuvo éxito. Error: {e}", exc_info=True)
+
         logging.info(f"🎉 ¡Pipeline completado! El archivo de resultados '{self.output_path}' está listo.")
     
     def run_categorization_only(self, codes_to_categorize: List[Dict[str, Any]] = None):

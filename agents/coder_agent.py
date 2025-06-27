@@ -1,9 +1,12 @@
 import google.generativeai as genai
 import json
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, Optional
 from pydantic import ValidationError
+import logging
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from models.data_models import CodingResult
+from services.llm_service import LLMService
 from utils.file_utils import extract_json_from_text
 
 class CoderAgent:
@@ -84,15 +87,23 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
 <output_del_modelo>
 """
 
-    def __init__(self, model_name: str = "models/gemini-2.5-flash-lite-preview-06-17"):
+    def __init__(self, llm_service: LLMService):
         """
-        Inicializa el CoderAgent.
-        - Configura el modelo generativo de Google.
-        - Se asume que la API Key está configurada en el entorno (p.ej. con `genai.configure(api_key="...")`).
-        """
-        self.model = genai.GenerativeModel(model_name)
-        print("🤖 CoderAgent inicializado con el modelo:", model_name)
+        Inicializa el CoderAgent con sus dependencias.
 
+        Args:
+            llm_service: Una instancia de un servicio para interactuar con el LLM.
+        """
+        self.logger = logging.getLogger(__name__)
+        self.llm_service = llm_service
+        self._prompt_template = self.PROMPT_TEMPLATE
+
+    def _load_prompt_template(self) -> str:
+        """DEPRECATED: La plantilla ahora está hardcodeada en la clase."""
+        self.logger.warning("El método _load_prompt_template está obsoleto y será eliminado. Usando PROMPT_TEMPLATE directamente.")
+        return self.PROMPT_TEMPLATE
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def generate_codes(self, insight: Dict[str, Any]) -> CodingResult:
         """
         Genera códigos para un único insight y devuelve un objeto validado.
@@ -101,36 +112,40 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
             insight: Un diccionario que representa un insight, debe contener 'id' y 'text'.
 
         Returns:
-            Un objeto CodingResult validado, que incluye el resultado o un mensaje de error.
+            Un objeto CodingResult validado.
         """
-        # 1. Preparar el JSON de entrada que espera la plantilla del prompt.
-        input_data_for_prompt = {
+        # 1. Transformar el insight al formato esperado por el prompt.
+        # El prompt espera 'id_fragmento' y 'fragmento_original'.
+        insight_for_prompt = {
             "id_fragmento": insight.get("id"),
             "fragmento_original": insight.get("text"),
             "codigos_abiertos": []
         }
-        
-        json_input_str = json.dumps(input_data_for_prompt, indent=2, ensure_ascii=False)
+        json_input_str = json.dumps(insight_for_prompt, indent=2, ensure_ascii=False)
 
         # 2. Rellenar la plantilla principal con el string JSON que acabamos de crear.
-        final_prompt = self.PROMPT_TEMPLATE.format(json_input=json_input_str)
+        final_prompt = self._prompt_template.format(json_input=json_input_str)
         
         try:
-            # 3. Llamar a la API del modelo generativo.
-            response = self.model.generate_content(final_prompt)
+            # 3. Llamar a la API a través del servicio centralizado.
+            llm_response_text = self.llm_service.invoke_llm(final_prompt)
             
             # 4. Usar nuestra utilidad experta para extraer y parsear el JSON de la respuesta.
-            parsed_output = extract_json_from_text(response.text)
+            if not llm_response_text:
+                raise ValueError("La respuesta del LLM estaba vacía.")
 
-            if not parsed_output:
-                raise json.JSONDecodeError("La utilidad no pudo extraer un JSON válido de la respuesta.", response.text, 0)
+            json_output = extract_json_from_text(llm_response_text)
             
-            # 5. Validar la salida con Pydantic para asegurar la integridad de la estructura.
-            validated_output = CodingResult.model_validate(parsed_output)
+            if not json_output:
+                raise ValueError("No se pudo extraer un JSON válido de la respuesta del LLM.")
+
+            # 5. Validar la estructura del JSON con Pydantic.
+            # El LLM debería devolver el objeto completo, incluyendo id_fragmento y fragmento_original.
+            validated_output = CodingResult.model_validate(json_output)
             return validated_output
 
-        except (ValidationError, json.JSONDecodeError) as e:
-            print(f"Error de validación o parseo para el insight {insight.get('id')}: {e}")
+        except (ValueError, ValidationError) as e:
+            self.logger.warning(f"Error de validación/parseo para el insight {insight.get('id')}: {e}. Se omitirá del resultado.")
             return CodingResult(
                 id_fragmento=insight.get("id"),
                 fragmento_original=insight.get("text"),
@@ -138,10 +153,10 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
                 error=f"Fallo de validación/parseo: {e}"
             )
         except Exception as e:
-            print(f"Error genérico al procesar el insight {insight.get('id')}: {e}")
+            self.logger.error(f"Error inesperado al procesar el insight {insight.get('id')}: {e}")
             return CodingResult(
                 id_fragmento=insight.get("id"),
                 fragmento_original=insight.get("text"),
                 codigos_abiertos=[],
-                error=str(e)
+                error=f"Error inesperado: {e}"
             )

@@ -4,12 +4,12 @@ import json
 import os
 import logging
 from typing import List, Dict, Any, Optional
-import google.generativeai as genai
 from dotenv import load_dotenv
 from pydantic import ValidationError
 
-from utils.file_utils import load_json_file, save_json_file
+from utils.file_utils import load_json_file, save_json_file, extract_json_from_text
 from models.data_models import Codebook, Category, CategorizationResult
+from services.llm_service import LLMService
 
 class CategorizerAgent:
     """
@@ -22,57 +22,40 @@ class CategorizerAgent:
     """
 
     def __init__(self, 
-                 config_path: str = 'config_proyecto.json',
+                 llm_service: LLMService,
                  codebook_path: str = 'data/codebook.json',
+                 categories_path: str = 'data/categorias.json',
                  prompt_template_path: str = 'prompts/categorize_code.md',
-                 output_path: str = 'data/categorias.json',
-                 model_name: str = "models/gemini-2.5-flash-lite-preview-06-17",
-                 batch_size: int = 30):
+                 config_path: str = 'config_proyecto.json',
+                 batch_size: int = 50):
         """
-        Inicializa el agente con dependencias inyectadas y configuración flexible.
-        
-        Args:
-            config_path: Ruta al archivo de configuración del proyecto
-            codebook_path: Ruta al codebook con códigos unificados
-            prompt_template_path: Ruta al template de prompt
-            output_path: Ruta donde guardar las categorías resultantes
-            model_name: Nombre del modelo de Google Generative AI
-            batch_size: Tamaño de los lotes de códigos a procesar
+        Inicializa el agente con sus dependencias.
         """
-        # Configurar logging
         self.logger = logging.getLogger(__name__)
-        
-        # Configurar API de Google
-        load_dotenv()
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("No se encontró la GOOGLE_API_KEY en el archivo .env")
-        
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
-        
-        # Configurar rutas de archivos
-        self.config_path = config_path
+        self.llm_service = llm_service
         self.codebook_path = codebook_path
+        self.categories_path = categories_path
         self.prompt_template_path = prompt_template_path
-        self.output_path = output_path
         self.batch_size = batch_size
-        
-        self._prompt_template_cache: Optional[str] = None
-        self.logger.info("CategorizerAgent inicializado correctamente.")
+        self._prompt_template = None
+        try:
+            self.config_data = load_json_file(config_path)
+        except FileNotFoundError:
+            self.logger.warning(f"Archivo de configuración no encontrado en {config_path}. Se usarán valores por defecto.")
+            self.config_data = {}
 
     def _load_prompt_template(self) -> str:
         """
         Carga la plantilla de prompt desde el archivo .md, usando caché.
         """
-        if self._prompt_template_cache is None:
+        if self._prompt_template is None:
             try:
                 with open(self.prompt_template_path, 'r', encoding='utf-8') as f:
-                    self._prompt_template_cache = f.read()
+                    self._prompt_template = f.read()
             except FileNotFoundError:
                 self.logger.error(f"Template de prompt no encontrado: {self.prompt_template_path}")
                 raise
-        return self._prompt_template_cache
+        return self._prompt_template
 
     def _prepare_prompt(self, codes_to_categorize: List[Dict[str, Any]], known_categories: List[Category]) -> str:
         """
@@ -82,7 +65,6 @@ class CategorizerAgent:
         self.logger.info("Preparando prompt optimizado...")
         
         # Cargar datos necesarios usando las utilidades y validando con Pydantic
-        config_data = load_json_file(self.config_path)
         codebook_data = load_json_file(self.codebook_path)
         prompt_template = self._load_prompt_template()
 
@@ -94,7 +76,7 @@ class CategorizerAgent:
 
         id_to_label_map = {code.id: code.label for code in codebook.codes}
         
-        research_questions = config_data.get("research_questions", [])
+        research_questions = self.config_data.get("research_questions", [])
         
         if known_categories:
             seed_categories_for_prompt = [
@@ -102,7 +84,7 @@ class CategorizerAgent:
                 for cat in known_categories
             ]
         else:
-            seed_categories_for_prompt = config_data.get("seed_categories", [])
+            seed_categories_for_prompt = self.config_data.get("seed_categories", [])
         
         research_questions_text = "\n".join(f"- {q}" for q in research_questions)
         seed_categories_json = json.dumps(seed_categories_for_prompt, indent=2, ensure_ascii=False)
@@ -121,35 +103,42 @@ class CategorizerAgent:
 
     def _invoke_llm(self, prompt: str) -> List[CategorizationResult]:
         """
-        Invoca al LLM con el prompt final y utiliza el 'Modo JSON' nativo,
-        validando la respuesta con Pydantic para máxima fiabilidad.
+        Invoca al LLM con el prompt final, confiando en que el LLMService
+        ya está configurado para el modo JSON, y valida la respuesta.
         """
-        self.logger.info("Invocando LLM para categorización usando Modo JSON...")
+        self.logger.info("Invocando LLM para categorización...")
         
         try:
-            generation_config = genai.types.GenerationConfig(response_mime_type="application/json")
-            response = self.model.generate_content(prompt, generation_config=generation_config)
+            response_text = self.llm_service.invoke_llm(prompt)
             
-            self.logger.debug(f"Respuesta raw del LLM: {repr(response.text[:200])}...")
+            self.logger.debug(f"Respuesta raw del LLM: {repr(response_text[:200])}...")
             
-            response_data = json.loads(response.text)
-            
+            if not response_text:
+                self.logger.error("La respuesta del LLM para la categorización estaba vacía.")
+                return []
+
+            # Extraer el JSON de la respuesta
+            json_output = extract_json_from_text(response_text)
+            if not json_output:
+                self.logger.error("No se pudo extraer un JSON válido de la respuesta del LLM para la categorización.")
+                return []
+
             # Validación con Pydantic: potente, declarativa y en una línea.
-            validated_results = [CategorizationResult.model_validate(item) for item in response_data]
+            validated_results = [CategorizationResult.model_validate(item) for item in json_output]
             
             self.logger.info(f"LLM procesó y validó exitosamente {len(validated_results)} categorías.")
             return validated_results
             
         except json.JSONDecodeError as e:
-            self.logger.error(f"Respuesta del LLM no es JSON válido. Error: {e}. Respuesta: {repr(response.text)}")
+            self.logger.error(f"Respuesta del LLM no es JSON válido. Error: {e}. Respuesta: {repr(response_text)}")
             raise ValueError(f"Respuesta del LLM no es JSON válido: {e}")
         except ValidationError as e:
-            self.logger.error(f"La respuesta del LLM no cumple con el modelo CategorizationResult. Error: {e}. Respuesta: {repr(response.text)}")
+            self.logger.error(f"La respuesta del LLM no cumple con el modelo CategorizationResult. Error: {e}. Respuesta: {repr(response_text)}")
             raise ValueError(f"La respuesta del LLM tiene un formato inesperado: {e}")
         except Exception as e:
             self.logger.error(f"Error en invocación del LLM: {e}")
-            if 'response' in locals():
-                self.logger.error(f"Respuesta que causó el error: {repr(response.text)}")
+            if 'response_text' in locals() and response_text:
+                self.logger.error(f"Respuesta que causó el error: {repr(response_text)}")
             raise
 
     def _update_known_categories(self,
@@ -188,11 +177,11 @@ class CategorizerAgent:
         """
         Guarda la lista final de categorías en un archivo JSON.
         """
-        self.logger.info(f"Guardando {len(categorized_data)} categorías en {self.output_path}")
+        self.logger.info(f"Guardando {len(categorized_data)} categorías en {self.categories_path}")
         # Convertimos los objetos Pydantic a una lista de diccionarios para guardarlos
         data_to_save = [cat.model_dump() for cat in categorized_data]
         try:
-            save_json_file(self.output_path, data_to_save)
+            save_json_file(self.categories_path, data_to_save)
         except Exception as e:
             self.logger.error(f"No se pudo guardar el archivo de salida: {e}")
             raise

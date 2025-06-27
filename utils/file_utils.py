@@ -2,29 +2,50 @@
 import json
 import logging
 import re
-from typing import List, Dict, Any, Iterator, Optional
+from typing import List, Dict, Any, Iterator, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
+def extract_json_from_text(text: str) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
     """
-    Busca y extrae el primer bloque JSON válido de un string de texto.
+    Busca y extrae el primer bloque JSON válido de un string de texto, ya sea un objeto o una lista.
     Ideal para limpiar respuestas de LLMs que envuelven el JSON con texto explicativo.
     """
-    # Expresión regular para encontrar contenido entre el primer { y el último }
-    # El modificador re.DOTALL (o re.S) permite que '.' coincida con saltos de línea.
-    match = re.search(r'\{.*\}', text, re.DOTALL)
-    
-    if match:
-        json_str = match.group(0)
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"Se encontró un bloque JSON-like pero no se pudo parsear: {e}")
-            logger.debug(f"Bloque JSON problemático: {json_str}")
-            return None
+    # Buscar el inicio del JSON (puede ser un objeto o una lista)
+    first_char_pos = -1
+    first_brace = text.find('{')
+    first_bracket = text.find('[')
+
+    if first_brace != -1 and first_bracket != -1:
+        first_char_pos = min(first_brace, first_bracket)
+    elif first_brace != -1:
+        first_char_pos = first_brace
     else:
-        logger.warning("No se encontró ningún bloque JSON en el texto.")
+        first_char_pos = first_bracket
+
+    if first_char_pos == -1:
+        logger.warning("No se encontró ningún carácter de inicio de JSON ('{' o '[') en el texto.")
+        return None
+
+    # Determinar el carácter de cierre correspondiente
+    start_char = text[first_char_pos]
+    end_char = '}' if start_char == '{' else ']'
+
+    # Buscar el último carácter de cierre
+    last_char_pos = text.rfind(end_char)
+
+    if last_char_pos == -1 or last_char_pos < first_char_pos:
+        logger.warning(f"Se encontró un '{start_char}' de inicio pero no un '{end_char}' de cierre válido.")
+        return None
+
+    # Extraer el substring que potencialmente es un JSON
+    json_str = text[first_char_pos:last_char_pos + 1]
+
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError as e:
+        logger.error(f"Se encontró un bloque JSON-like pero no se pudo parsear: {e}")
+        logger.debug(f"Bloque JSON problemático: {json_str}")
         return None
 
 def load_json_file(file_path: str) -> Any:
