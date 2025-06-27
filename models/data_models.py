@@ -93,4 +93,15 @@ class AxialAnalysisOutput(BaseModel):
     Este es el modelo de validación principal para la respuesta de la API.
     """
     paradigm_model: ParadigmModel
-    properties_and_dimensions: List[PropertyAndDimension] = Field(default_factory=list) 
+    properties_and_dimensions: List[PropertyAndDimension] = Field(default_factory=list)
+
+# --- Modelos para Metadatos de Trazabilidad ---
+
+class InsightMetadata(BaseModel):
+    """Almacena metadatos para un único insight, como su origen."""
+    method: str
+    source: str
+
+class InsightsMetadataRegistry(BaseModel):
+    """Registro completo de metadatos para todos los insights."""
+    insights: Dict[str, InsightMetadata] = Field(default_factory=dict) 

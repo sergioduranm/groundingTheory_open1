@@ -1,5 +1,9 @@
 # Core Dependencies
-google-generativeai>=0.3.0
+google-generativeai>=0.5.4
+google-api-core>=2.19.0
+python-dotenv>=1.0.1
+litellm>=1.39.2
+openai>=1.30.0
 
 # Data Processing
 pandas>=2.0.0
@@ -14,7 +18,6 @@ numpy>=1.24.0
 pytest>=7.0.0
 black>=23.0.0
 flake8>=6.0.0
-python-dotenv
 sentence-transformers
 scikit-learn
 tenacity

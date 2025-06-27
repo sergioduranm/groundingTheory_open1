@@ -101,4 +101,26 @@ def append_to_jsonl_file(file_path: str, data: Dict[str, Any]):
             f.write(json.dumps(data, ensure_ascii=False) + '\n')
     except Exception as e:
         logger.error(f"Ocurrió un error inesperado al añadir a {file_path}: {e}")
+        raise
+
+def save_insights_metadata(registry: Any, file_path: str):
+    """
+    Guarda el registro de metadatos de insights en un archivo JSON.
+    El objeto 'registry' debe ser un modelo de Pydantic o tener un método 'dict()'.
+    """
+    try:
+        if hasattr(registry, 'model_dump'):
+            # Pydantic v2
+            data_to_save = registry.model_dump()
+        elif hasattr(registry, 'dict'):
+            # Pydantic v1
+            data_to_save = registry.dict()
+        else:
+            # Asumir que es un dict-like object
+            data_to_save = registry
+            
+        save_json_file(file_path, data_to_save)
+        logger.info(f"Metadatos de insights guardados exitosamente en {file_path}")
+    except Exception as e:
+        logger.error(f"Error al guardar los metadatos de insights en {file_path}: {e}")
         raise 

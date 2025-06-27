@@ -1,0 +1,124 @@
+{
+    "insights": {
+        "insight_031": {
+            "method": "interview",
+            "source": "INT_001"
+        },
+        "insight_032": {
+            "method": "benchmark",
+            "source": "BENCH_01"
+        },
+        "insight_033": {
+            "method": "observation",
+            "source": "OBS_001"
+        },
+        "insight_034": {
+            "method": "document",
+            "source": "DOC_001"
+        },
+        "insight_035": {
+            "method": "survey",
+            "source": "SURV_031"
+        },
+        "insight_036": {
+            "method": "interview",
+            "source": "INT_002"
+        },
+        "insight_037": {
+            "method": "benchmark",
+            "source": "BENCH_02"
+        },
+        "insight_038": {
+            "method": "observation",
+            "source": "OBS_002"
+        },
+        "insight_039": {
+            "method": "document",
+            "source": "DOC_002"
+        },
+        "insight_040": {
+            "method": "survey",
+            "source": "SURV_032"
+        },
+        "insight_041": {
+            "method": "interview",
+            "source": "INT_003"
+        },
+        "insight_042": {
+            "method": "benchmark",
+            "source": "BENCH_03"
+        },
+        "insight_043": {
+            "method": "observation",
+            "source": "OBS_003"
+        },
+        "insight_044": {
+            "method": "document",
+            "source": "DOC_003"
+        },
+        "insight_045": {
+            "method": "survey",
+            "source": "SURV_033"
+        },
+        "insight_046": {
+            "method": "interview",
+            "source": "INT_004"
+        },
+        "insight_047": {
+            "method": "benchmark",
+            "source": "BENCH_04"
+        },
+        "insight_048": {
+            "method": "observation",
+            "source": "OBS_004"
+        },
+        "insight_049": {
+            "method": "document",
+            "source": "DOC_004"
+        },
+        "insight_050": {
+            "method": "survey",
+            "source": "SURV_034"
+        },
+        "insight_051": {
+            "method": "interview",
+            "source": "INT_005"
+        },
+        "insight_052": {
+            "method": "benchmark",
+            "source": "BENCH_05"
+        },
+        "insight_053": {
+            "method": "observation",
+            "source": "OBS_005"
+        },
+        "insight_054": {
+            "method": "document",
+            "source": "DOC_005"
+        },
+        "insight_055": {
+            "method": "survey",
+            "source": "SURV_035"
+        },
+        "insight_056": {
+            "method": "interview",
+            "source": "INT_006"
+        },
+        "insight_057": {
+            "method": "benchmark",
+            "source": "BENCH_06"
+        },
+        "insight_058": {
+            "method": "observation",
+            "source": "OBS_006"
+        },
+        "insight_059": {
+            "method": "document",
+            "source": "DOC_006"
+        },
+        "insight_060": {
+            "method": "survey",
+            "source": "SURV_036"
+        }
+    }
+}
