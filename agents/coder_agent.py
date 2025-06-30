@@ -42,6 +42,8 @@ NO resumas. NO interpretes. SOLO codifica la acción, evitando repetir códigos 
 ### 3. Códigos "In Vivo":
 - Si el texto contiene una frase literal muy potente, úsala.
 - **Formato:** `[in vivo] "frase literal exacta"`.
+- **ATENCIÓN AL ESCAPE:** Si la frase literal contiene comillas dobles ("), es OBLIGATORIO escaparlas con una doble barra invertida (`\\"`).
+- **Ejemplo con escape:** `"[in vivo] \\"la frase textual con comillas va aquí\\""`.
 </reglas_de_codificacion_inquebrantables>
 
 <tarea_especifica_json>
@@ -87,21 +89,31 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
 <output_del_modelo>
 """
 
-    def __init__(self, llm_service: LLMService):
+    def __init__(self, llm_service: LLMService, prompt_template_path: str = 'prompts/open_coding.md'):
         """
         Inicializa el CoderAgent con sus dependencias.
 
         Args:
             llm_service: Una instancia de un servicio para interactuar con el LLM.
+            prompt_template_path: La ruta al archivo de plantilla del prompt.
         """
         self.logger = logging.getLogger(__name__)
         self.llm_service = llm_service
-        self._prompt_template = self.PROMPT_TEMPLATE
+        self.prompt_template_path = prompt_template_path
+        self._prompt_template: Optional[str] = None # Para carga perezosa (lazy loading)
 
     def _load_prompt_template(self) -> str:
-        """DEPRECATED: La plantilla ahora está hardcodeada en la clase."""
-        self.logger.warning("El método _load_prompt_template está obsoleto y será eliminado. Usando PROMPT_TEMPLATE directamente.")
-        return self.PROMPT_TEMPLATE
+        """
+        Carga la plantilla de prompt desde el archivo .md, usando un sistema de caché simple.
+        """
+        if self._prompt_template is None:
+            try:
+                with open(self.prompt_template_path, 'r', encoding='utf-8') as f:
+                    self._prompt_template = f.read()
+            except FileNotFoundError:
+                self.logger.error(f"Archivo de plantilla de prompt no encontrado en: {self.prompt_template_path}")
+                raise
+        return self._prompt_template
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def generate_codes(self, insight: Dict[str, Any]) -> CodingResult:
@@ -123,8 +135,9 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
         }
         json_input_str = json.dumps(insight_for_prompt, indent=2, ensure_ascii=False)
 
-        # 2. Rellenar la plantilla principal con el string JSON que acabamos de crear.
-        final_prompt = self._prompt_template.format(json_input=json_input_str)
+        # 2. Cargar la plantilla y rellenarla con el string JSON.
+        prompt_template = self._load_prompt_template()
+        final_prompt = prompt_template.format(json_input=json_input_str)
         
         try:
             # 3. Llamar a la API a través del servicio centralizado.
@@ -137,6 +150,18 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
             json_output = extract_json_from_text(llm_response_text)
             
             if not json_output:
+                # Si la extracción falla, usamos print() para una depuración a prueba de fallos.
+                print("\n" + "="*80)
+                print(f"DEBUG: REPORTE DE FALLO DE PARSEO PARA INSIGHT ID: {insight.get('id')}")
+                print("="*80)
+                print("\n[PROMPT ENVIADO AL MODELO]\n")
+                print(final_prompt)
+                print("\n" + "-"*80 + "\n")
+                print("[RESPUESTA CRUDA RECIBIDA DEL MODELO]\n")
+                print(llm_response_text)
+                print("\n" + "="*80)
+                print("FIN DEL REPORTE DE DEPURACIÓN")
+                print("="*80 + "\n")
                 raise ValueError("No se pudo extraer un JSON válido de la respuesta del LLM.")
 
             # 5. Validar la estructura del JSON con Pydantic.
@@ -145,18 +170,11 @@ VERIFICAR FORMATO FINAL: ¿La salida que voy a producir es un único objeto JSON
             return validated_output
 
         except (ValueError, ValidationError) as e:
-            self.logger.warning(f"Error de validación/parseo para el insight {insight.get('id')}: {e}. Se omitirá del resultado.")
-            return CodingResult(
-                id_fragmento=insight.get("id"),
-                fragmento_original=insight.get("text"),
-                codigos_abiertos=[],
-                error=f"Fallo de validación/parseo: {e}"
-            )
+            self.logger.error(f"Error fatal de validación/parseo para el insight {insight.get('id')}: {e}.")
+            # Relanzamos la excepción para detener la ejecución (lógica Fail-Fast).
+            # El reporte de depuración con print() ya se mostró antes de este punto.
+            raise e
+            
         except Exception as e:
             self.logger.error(f"Error inesperado al procesar el insight {insight.get('id')}: {e}")
-            return CodingResult(
-                id_fragmento=insight.get("id"),
-                fragmento_original=insight.get("text"),
-                codigos_abiertos=[],
-                error=f"Error inesperado: {e}"
-            )
+            raise e

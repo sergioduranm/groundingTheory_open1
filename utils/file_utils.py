@@ -8,41 +8,29 @@ logger = logging.getLogger(__name__)
 
 def extract_json_from_text(text: str) -> Optional[Union[Dict[str, Any], List[Dict[str, Any]]]]:
     """
-    Busca y extrae el primer bloque JSON válido de un string de texto, ya sea un objeto o una lista.
-    Ideal para limpiar respuestas de LLMs que envuelven el JSON con texto explicativo.
+    Busca y extrae el primer bloque JSON válido de un string de texto usando una expresión regular.
+    Es más robusto que buscar simplemente llaves, ya que maneja JSON anidado y texto circundante.
     """
-    # Buscar el inicio del JSON (puede ser un objeto o una lista)
-    first_char_pos = -1
-    first_brace = text.find('{')
-    first_bracket = text.find('[')
-
-    if first_brace != -1 and first_bracket != -1:
-        first_char_pos = min(first_brace, first_bracket)
-    elif first_brace != -1:
-        first_char_pos = first_brace
-    else:
-        first_char_pos = first_bracket
-
-    if first_char_pos == -1:
-        logger.warning("No se encontró ningún carácter de inicio de JSON ('{' o '[') en el texto.")
+    # Expresión regular para encontrar un bloque de código JSON (objeto o array)
+    # que puede estar encerrado en ```json ... ```
+    json_pattern = re.compile(r'```json\s*(\{.*\}|\[.*\])\s*```|(\{.*\}|\[.*\])', re.DOTALL)
+    
+    match = json_pattern.search(text)
+    
+    if not match:
+        logger.warning("No se encontró ningún bloque de código JSON en el texto.")
         return None
 
-    # Determinar el carácter de cierre correspondiente
-    start_char = text[first_char_pos]
-    end_char = '}' if start_char == '{' else ']'
+    # El patrón tiene grupos de captura. El primer grupo que no sea None contiene el JSON.
+    json_str = next((group for group in match.groups() if group is not None), None)
 
-    # Buscar el último carácter de cierre
-    last_char_pos = text.rfind(end_char)
-
-    if last_char_pos == -1 or last_char_pos < first_char_pos:
-        logger.warning(f"Se encontró un '{start_char}' de inicio pero no un '{end_char}' de cierre válido.")
-        return None
-
-    # Extraer el substring que potencialmente es un JSON
-    json_str = text[first_char_pos:last_char_pos + 1]
+    if not json_str:
+         logger.warning("La expresión regular encontró un patrón pero no pudo extraer el contenido JSON.")
+         return None
 
     try:
-        return json.loads(json_str)
+        # Limpiar por si acaso el string tiene espacios extra al principio/final
+        return json.loads(json_str.strip())
     except json.JSONDecodeError as e:
         logger.error(f"Se encontró un bloque JSON-like pero no se pudo parsear: {e}")
         logger.debug(f"Bloque JSON problemático: {json_str}")

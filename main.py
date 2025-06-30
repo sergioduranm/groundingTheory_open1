@@ -7,13 +7,20 @@ Este módulo implementa un sistema de agentes de IA para análisis cualitativo
 utilizando el ADK de Google Generative AI.
 """
 
+# PRIMERO: Cargar las variables de entorno. Esto es crucial.
+# Debe hacerse antes de importar cualquier otro módulo del proyecto que pueda usar esas variables.
+from dotenv import load_dotenv
+load_dotenv()
+
+# AHORA: Importar el resto de módulos
 import logging
+import os
 from typing import Optional
 from orchestrator import Orchestrator
 
 # Configuración de logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)

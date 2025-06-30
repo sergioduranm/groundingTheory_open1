@@ -3,13 +3,14 @@ import os
 import logging
 import litellm
 from openai import APIError
+from typing import Union
 
 class LLMService:
     """
     Gestiona las interacciones con APIs de LLM a través de liteLLM.
     Permite cambiar de proveedor (Google, OpenAI, Anthropic, etc.) de forma transparente.
     """
-    def __init__(self, model: str = "gpt-4.1-nano-2025-04-14", temperature: float = 0.4):
+    def __init__(self, model: str = "gemini/gemini-2.5-flash", temperature: float = 0.4):
         """
         Configura el servicio de LLM.
 
@@ -24,7 +25,7 @@ class LLMService:
         # No es necesaria la configuración de API key aquí, liteLLM la maneja automáticamente.
         self.logger.info(f"LLMService inicializado con el modelo: {model} a través de liteLLM")
 
-    def invoke_llm(self, prompt: str) -> str | None:
+    def invoke_llm(self, prompt: str) -> Union[str, None]:
         """
         Envía un prompt a un LLM a través de liteLLM y devuelve la respuesta.
 
@@ -38,10 +39,15 @@ class LLMService:
         try:
             messages = [{"role": "user", "content": prompt}]
             
+            # Forzar el paso de la API Key para depuración
+            api_key = os.getenv("GOOGLE_API_KEY")
+
             response = litellm.completion(
                 model=self.model,
                 messages=messages,
-                temperature=self.temperature
+                temperature=self.temperature,
+                api_key=api_key,
+                response_mime_type="application/json"  # Forzar JSON Mode en modelos compatibles
             )
             
             # Comprobación de la razón de finalización para mantener la seguridad y la robustez.

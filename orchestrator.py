@@ -14,10 +14,6 @@ from agents.axial_analyst_agent import AxialAnalystAgent
 from agents.embedding_client import EmbeddingClient
 from agents.codebook_repository import CodebookRepository
 
-# Configurar un logger básico para recibir los mensajes de advertencia
-# (La configuración de main.py puede sobreescribir esta, lo cual está bien)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 class Orchestrator:
     """
     Orquesta el pipeline completo de principio a fin:
@@ -111,7 +107,15 @@ class Orchestrator:
         logging.info("Ejecutando CoderAgent para generar códigos abiertos...")
         coded_insights = []
         all_code_labels = []
-        for insight in raw_insights:
+
+        # --- LIMITADOR DE DEBUG ---
+        # Procesamos solo los primeros 5 insights para una prueba de validación.
+        num_insights_to_process = 5
+        insights_to_process = raw_insights[:num_insights_to_process]
+        logging.warning(f"MODO DE PRUEBA: Procesando solo los primeros {len(insights_to_process)} de {len(raw_insights)} insights.")
+
+        for i, insight in enumerate(insights_to_process, 1):
+            logging.info(f"Procesando insight {i}/{len(insights_to_process)} (ID: {insight.get('id', 'N/A')})...")
             # El CoderAgent ahora devuelve un objeto Pydantic validado.
             coding_result = self.coder.generate_codes(insight)
             
