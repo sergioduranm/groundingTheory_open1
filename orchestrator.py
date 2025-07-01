@@ -13,6 +13,7 @@ from agents.categorizer_agent import CategorizerAgent
 from agents.axial_analyst_agent import AxialAnalystAgent
 from agents.embedding_client import EmbeddingClient
 from agents.codebook_repository import CodebookRepository
+from agents.narrator_agent import NarratorAgent
 
 class Orchestrator:
     """
@@ -217,6 +218,18 @@ class Orchestrator:
 
         logging.info(f"🎉 ¡Pipeline completado! El archivo de resultados '{self.output_path}' está listo.")
     
+    def run_narrator(self):
+        """
+        Runs the narrative generation stage independently.
+        """
+        logging.info("Orchestrating the Narrator Agent...")
+        try:
+            narrator = NarratorAgent(llm_service=self.llm_service)
+            narrator.run()
+            logging.info("✅ Narrator Agent finished successfully.")
+        except Exception as e:
+            logging.error(f"❌ Narrator Agent failed: {e}", exc_info=True)
+
     def run_categorization_only(self, codes_to_categorize: List[Dict[str, Any]] = None):
         """
         Ejecuta únicamente la fase de categorización, útil para análisis axial
