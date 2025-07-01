@@ -17,6 +17,7 @@ import logging
 import os
 from typing import Optional
 from orchestrator import Orchestrator
+from utils.file_utils import load_json_file
 import argparse
 
 # Configuración de logging
@@ -31,22 +32,28 @@ def main():
     )
     parser.add_argument(
         'task',
-        choices=['pipeline', 'narrate'],
+        choices=['pipeline', 'narrate', 'synthesis'],
         default='pipeline',
         nargs='?', # El argumento es opcional, 'pipeline' es el default
-        help="Especifica la tarea a ejecutar: 'pipeline' para el proceso completo, 'narrate' para generar las narrativas."
+        help="Especifica la tarea a ejecutar: 'pipeline' para el proceso completo, 'narrate' para generar las narrativas, 'synthesis' para el reporte final."
     )
     args = parser.parse_args()
 
     try:
-        # 1. Crear una instancia del orquestador
-        pipeline_orchestrator = Orchestrator()
+        # Cargar configuración del proyecto
+        config = load_json_file("config_proyecto.json")
+        
+        # 1. Crear una instancia del orquestador con la configuración
+        pipeline_orchestrator = Orchestrator(config)
 
         # 2. Ejecutar la tarea seleccionada
         if args.task == 'narrate':
             logging.info("Iniciando la tarea de narración...")
             pipeline_orchestrator.run_narrator()
-        else:
+        elif args.task == 'synthesis':
+            logging.info("Iniciando la tarea de síntesis teórica...")
+            pipeline_orchestrator.run_synthesis()
+        else: # 'pipeline' es el default
             logging.info("Iniciando el pipeline completo...")
             pipeline_orchestrator.run_pipeline()
 

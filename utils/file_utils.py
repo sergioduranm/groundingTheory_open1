@@ -112,3 +112,33 @@ def save_insights_metadata(registry: Any, file_path: str):
     except Exception as e:
         logger.error(f"Error al guardar los metadatos de insights en {file_path}: {e}")
         raise 
+
+def write_text_file(file_path: str, content: str):
+    """
+    Escribe contenido de texto a un archivo, sobrescribiéndolo si existe.
+    
+    Args:
+        file_path (str): Ruta del archivo a escribir
+        content (str): Contenido a escribir
+    """
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        logger.info(f"Archivo de texto escrito exitosamente: {file_path}")
+    except IOError as e:
+        logger.error(f"Error escribiendo el archivo de texto {file_path}: {e}")
+        raise
+
+def load_prompt_template(file_path: str) -> str:
+    """
+    Carga una plantilla de prompt desde un archivo de texto.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.error(f"Archivo de plantilla de prompt no encontrado: {file_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Error inesperado al cargar la plantilla de prompt {file_path}: {e}")
+        raise 

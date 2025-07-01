@@ -14,6 +14,7 @@ from agents.axial_analyst_agent import AxialAnalystAgent
 from agents.embedding_client import EmbeddingClient
 from agents.codebook_repository import CodebookRepository
 from agents.narrator_agent import NarratorAgent
+from agents.synthesis_agent import SynthesisAgent
 
 class Orchestrator:
     """
@@ -25,16 +26,17 @@ class Orchestrator:
     5. Usa el mapa para enriquecer los datos con los IDs unificados.
     6. Guarda el resultado final.
     """
-    def __init__(self):
+    def __init__(self, config: Dict[str, Any]):
         load_dotenv()
+        self.config = config
         google_api_key = os.getenv("GOOGLE_API_KEY")
         if not google_api_key:
             raise ValueError("La variable de entorno GOOGLE_API_KEY no está configurada.")
 
         # --- Inyección de dependencias para los agentes ---
         # 1. Crear una única instancia de los servicios compartidos
-        self.llm_service = LLMService()
-        self.codebook_repo = CodebookRepository(codebook_path="data/codebook.json")
+        self.llm_service = LLMService(model=self.config["llm"]["default_model"])
+        self.codebook_repo = CodebookRepository(codebook_path=self.config["data"]["codebook"])
         self.embedding_client = EmbeddingClient(api_key=google_api_key)
         
         # 2. Inyectar los servicios en los agentes que los necesitan
@@ -50,13 +52,11 @@ class Orchestrator:
         
         self.axial_analyst = AxialAnalystAgent(llm_service=self.llm_service)
 
-        # NUEVO: Definimos la ruta para los datos de entrada crudos
-        self.raw_data_path = "data/data.jsonl"
-        # NUEVO: Ruta para los resultados de codificación (checkpointing)
+        # Usar rutas desde la configuración
+        self.raw_data_path = self.config["data"]["data"]
         self.coded_data_path = "data/coded_insights.jsonl"
-        # NUEVO: Ruta para los insights que fallaron
         self.failed_data_path = "data/failed_insights.jsonl"
-        self.output_path = "data/analysis_results.jsonl" # Renombrado para reflejar el resultado final
+        self.output_path = "data/analysis_results.jsonl" 
 
     def _enrich_insights_with_unified_codes(
         self,
@@ -229,6 +229,16 @@ class Orchestrator:
             logging.info("✅ Narrator Agent finished successfully.")
         except Exception as e:
             logging.error(f"❌ Narrator Agent failed: {e}", exc_info=True)
+
+    def run_synthesis(self):
+        """
+        Ejecuta el agente de síntesis para crear el reporte teórico final.
+        """
+        logging.info("Iniciando la generación de la síntesis teórica...")
+        synthesis_agent = SynthesisAgent(self.llm_service, self.config)
+        output_path = synthesis_agent.run()
+        logging.info(f"Síntesis teórica completada. El reporte se guardó en: {output_path}")
+        return output_path
 
     def run_categorization_only(self, codes_to_categorize: List[Dict[str, Any]] = None):
         """
