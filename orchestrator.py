@@ -51,6 +51,10 @@ class Orchestrator:
 
         # NUEVO: Definimos la ruta para los datos de entrada crudos
         self.raw_data_path = "data/data.jsonl"
+        # NUEVO: Ruta para los resultados de codificación (checkpointing)
+        self.coded_data_path = "data/coded_insights.jsonl"
+        # NUEVO: Ruta para los insights que fallaron
+        self.failed_data_path = "data/failed_insights.jsonl"
         self.output_path = "data/analysis_results.jsonl" # Renombrado para reflejar el resultado final
 
     def _enrich_insights_with_unified_codes(
@@ -76,7 +80,7 @@ class Orchestrator:
                 else:
                     logging.warning(
                         f"No se encontró mapeo para la etiqueta '{label}' en el insight "
-                        f"'{insight.get('id_fragmento', 'ID_DESCONOCIDO')}'. "
+                        f"'{insight.get('id', insight.get('id_fragmento', 'ID_DESCONOCIDO'))}'. "
                         "Será omitida del resultado final."
                     )
             
@@ -94,7 +98,6 @@ class Orchestrator:
         logging.info("🚀 Iniciando el pipeline de orquestación end-to-end...")
 
         # --- FASE 1: Carga y Codificación de Datos Crudos ---
-        # MODIFICADO: Esta fase ahora es activa. Carga datos crudos y ejecuta el CoderAgent.
         logging.info(f"Cargando datos crudos desde {self.raw_data_path}...")
         try:
             with open(self.raw_data_path, 'r', encoding='utf-8') as f:
@@ -104,44 +107,80 @@ class Orchestrator:
             logging.error(f"FATAL: El archivo de entrada de datos crudos '{self.raw_data_path}' no existe.")
             return
 
-        logging.info("Ejecutando CoderAgent para generar códigos abiertos...")
+        # NUEVO: Lógica de Checkpointing y Reanudación
         coded_insights = []
-        all_code_labels = []
+        processed_ids = set()
+        if os.path.exists(self.coded_data_path):
+            logging.info(f"Encontrado archivo de checkpoint en {self.coded_data_path}. Reanudando...")
+            with open(self.coded_data_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        coded_insight = json.loads(line)
+                    except json.JSONDecodeError:
+                        logging.error("Línea corrupta en checkpoint; se omitirá para evitar bloqueo de reanudación.")
+                        continue
+                    coded_insights.append(coded_insight)
+                    # Fallback a 'id_fragmento' para checkpoints antiguos
+                    processed_ids.add(coded_insight.get("id") or coded_insight.get("id_fragmento"))
+            logging.info(f"Reanudando. Se cargaron {len(coded_insights)} insights ya procesados.")
 
-        # --- LIMITADOR DE DEBUG ---
-        # Procesamos solo los primeros 5 insights para una prueba de validación.
-        num_insights_to_process = 5
-        insights_to_process = raw_insights[:num_insights_to_process]
-        logging.warning(f"MODO DE PRUEBA: Procesando solo los primeros {len(insights_to_process)} de {len(raw_insights)} insights.")
-
-        for i, insight in enumerate(insights_to_process, 1):
-            logging.info(f"Procesando insight {i}/{len(insights_to_process)} (ID: {insight.get('id', 'N/A')})...")
-            # El CoderAgent ahora devuelve un objeto Pydantic validado.
-            coding_result = self.coder.generate_codes(insight)
+        insights_to_process = [
+            insight for insight in raw_insights if insight.get("id") not in processed_ids
+        ]
+        
+        if not insights_to_process:
+            logging.info("No hay nuevos insights para procesar. Pasando a la siguiente fase.")
+        else:
+            logging.info(f"Ejecutando CoderAgent para {len(insights_to_process)} nuevos insights...")
             
-            # Verificamos si hubo un error durante la codificación.
-            if coding_result.error:
-                logging.warning(f"Error al codificar insight {coding_result.id_fragmento}: {coding_result.error}. Se omitirá del resultado.")
-                # Creamos una entrada parcial para mantener la trazabilidad y la consistencia del esquema.
-                coded_insight = {
-                    "id_fragmento": coding_result.id_fragmento,
-                    "fragmento_original": coding_result.fragmento_original,
-                    "codigos_abiertos": [],
-                    "error": coding_result.error
-                }
-            else:
-                # Si no hay error, convertimos el resultado a un diccionario para fusionarlo.
-                generated_codes_dict = coding_result.model_dump()
-                # Combinamos el insight original con los códigos generados.
-                coded_insight = {**insight, **generated_codes_dict}
+            # Abre el archivo de checkpoint en modo 'append' para guardar incrementalmente
+            with open(self.coded_data_path, 'a', encoding='utf-8') as checkpoint_f:
+                for i, insight in enumerate(insights_to_process, 1):
+                    logging.info(f"Procesando insight {i}/{len(insights_to_process)} (ID: {insight.get('id', 'N/A')})...")
+                    try:
+                        coding_result = self.coder.generate_codes(insight)
+                        
+                        if coding_result.error:
+                            logging.warning(f"Error al codificar insight {coding_result.id_fragmento}: {coding_result.error}. Se omitirá.")
+                            coded_insight = {
+                                **insight,  # Preservar datos originales incluyendo 'id'
+                                "id_fragmento": coding_result.id_fragmento,
+                                "fragmento_original": coding_result.fragmento_original,
+                                "codigos_abiertos": [],
+                                "error": coding_result.error
+                            }
+                        else:
+                            generated_codes_dict = coding_result.model_dump()
+                            coded_insight = {**insight, **generated_codes_dict}
+                        
+                        # Guardado incremental
+                        checkpoint_f.write(json.dumps(coded_insight, ensure_ascii=False) + '\n')
+                        checkpoint_f.flush(); os.fsync(checkpoint_f.fileno())
+                        coded_insights.append(coded_insight)
 
-            coded_insights.append(coded_insight)
-            all_code_labels.extend(coded_insight.get("codigos_abiertos", []))
+                    except Exception as e:
+                        logging.error(f"Fallo CRÍTICO al procesar insight {insight.get('id', 'N/A')}: {e}", exc_info=True)
+                        # Guardar el insight fallido para análisis posterior
+                        with open(self.failed_data_path, 'a', encoding='utf-8') as failed_f:
+                            failed_data = {
+                                "id": insight.get("id"),  # Mantener consistencia con la key original
+                                "insight_original": insight,
+                                "error": str(e)
+                            }
+                            failed_f.write(json.dumps(failed_data, ensure_ascii=False) + '\n')
+                        continue # Continuar con el siguiente insight
 
-        logging.info(f"✅ CoderAgent finalizado. Se generaron un total de {len(all_code_labels)} etiquetas.")
+        # Recolectar todas las etiquetas de los insights codificados (ya sean de checkpoint o nuevos)
+        all_code_labels = []
+        for insight in coded_insights:
+            all_code_labels.extend(insight.get("codigos_abiertos", []))
+
+        # ✅ Deduplicar para evitar etiquetas repetidas
+        all_code_labels = list({label for label in all_code_labels})
+
+        logging.info(f"✅ Codificación finalizada. Se procesaron/cargaron {len(coded_insights)} insights. Total de {len(all_code_labels)} etiquetas generadas.")
 
         # --- FASE 2: Síntesis de Códigos ---
-        # (Esta fase no cambia, recibe los datos de la fase anterior)
         logging.info("Iniciando la fase de síntesis para generar el mapa de traducción...")
         translation_map = self.synthesizer.process_batch(all_code_labels)
         logging.info("✅ Mapa de traducción generado exitosamente. El codebook.json ha sido actualizado.")
