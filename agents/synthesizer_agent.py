@@ -42,20 +42,34 @@ class SynthesizerAgent:
         logger.info(f"📊 Metadata inicializada: embedding_dim={self.embedding_dim}")
 
     def _rebuild_internal_caches(self):
-        """Construye cachés en memoria para un rendimiento O(1) y O(N) rápido."""
+        """Construye cachés en memoria para un rendimiento O(1) y O(N) rápido con límites de memoria."""
         logger.info("⚡️ Construyendo cachés internos para acceso rápido...")
+        
+        # Límite de memoria para prevenir desbordamiento (ajustable según recursos disponibles)
+        MAX_EMBEDDINGS_IN_MEMORY = 10000  # Máximo 10k embeddings en memoria
+        
         self.codes_by_id: Dict[str, Code] = {c.id: c for c in self.codebook.codes}
         self.label_to_id: Dict[str, str] = {c.label: c.id for c in self.codebook.codes}
         
         codes_with_embeddings = [c for c in self.codebook.codes if c.embedding and isinstance(c.embedding, list) and len(c.embedding) > 0]
         
+        # Aplicar límite de memoria para embeddings
+        if len(codes_with_embeddings) > MAX_EMBEDDINGS_IN_MEMORY:
+            logger.warning(f"⚠️ Demasiados embeddings ({len(codes_with_embeddings)}) para cargar en memoria. "
+                          f"Limitando a {MAX_EMBEDDINGS_IN_MEMORY} más recientes.")
+            # Mantener los códigos más recientes (con mayor count) en memoria
+            codes_with_embeddings.sort(key=lambda c: c.count or 0, reverse=True)
+            codes_with_embeddings = codes_with_embeddings[:MAX_EMBEDDINGS_IN_MEMORY]
+        
         if codes_with_embeddings:
             self.ordered_code_ids = [c.id for c in codes_with_embeddings]
             self.embedding_matrix = np.array([c.embedding for c in codes_with_embeddings])
+            logger.info(f"⚡️ Cachés construidos. Matriz de embeddings tiene {self.embedding_matrix.shape[0]} vectores "
+                       f"(de {len(self.codebook.codes)} códigos totales).")
         else:
             self.ordered_code_ids = []
             self.embedding_matrix = np.empty((0, self.embedding_dim))
-        logger.info(f"⚡️ Cachés construidos. Matriz de embeddings tiene {self.embedding_matrix.shape[0]} vectores.")
+            logger.info("⚡️ Cachés construidos. Sin embeddings en memoria (modo de respaldo).")
 
     def process_batch(self, new_code_labels: List[str]) -> Dict[str, str]:
         """Procesa un lote de nuevas etiquetas de código y devuelve un mapa de traducción."""
@@ -82,6 +96,11 @@ class SynthesizerAgent:
 
         self.repository.save(self.codebook)
         logger.info(f"✅ Lote procesado. Codebook tiene ahora {len(self.codebook.codes)} códigos únicos.")
+        
+        # Reconstruir cachés si la matriz de embeddings se ha vuelto muy grande
+        if len(self.ordered_code_ids) > 8000:  # Reconstruir cuando se acerque al límite
+            logger.info("🔄 Reconstruyendo cachés para optimizar memoria...")
+            self._rebuild_internal_caches()
         
         # Devolvemos el mapa de traducción completo.
         return translation_map
@@ -118,17 +137,26 @@ class SynthesizerAgent:
                 translation_map[label] = new_id
                 
     def _add_single_code_to_cache(self, code: Code, embedding: np.ndarray):
-        """Añade un único objeto Code nuevo a todos los cachés en memoria."""
+        """Añade un único objeto Code nuevo a todos los cachés en memoria con límites de memoria."""
         logger.info(f"➕ Añadiendo nuevo código único al codebook: '{code.label}'")
         self.codebook.codes.append(code)
         self.codes_by_id[code.id] = code
         self.label_to_id[code.label] = code.id
-        self.ordered_code_ids.append(code.id)
         
-        if self.embedding_matrix.shape[0] == 0:
-            self.embedding_matrix = embedding.reshape(1, -1)
+        # Límite de memoria para embeddings (debe coincidir con _rebuild_internal_caches)
+        MAX_EMBEDDINGS_IN_MEMORY = 10000
+        
+        # Solo añadir a la matriz de embeddings si no hemos alcanzado el límite
+        if len(self.ordered_code_ids) < MAX_EMBEDDINGS_IN_MEMORY:
+            self.ordered_code_ids.append(code.id)
+            
+            if self.embedding_matrix.shape[0] == 0:
+                self.embedding_matrix = embedding.reshape(1, -1)
+            else:
+                self.embedding_matrix = np.vstack([self.embedding_matrix, embedding])
         else:
-            self.embedding_matrix = np.vstack([self.embedding_matrix, embedding])
+            logger.debug(f"Límite de memoria alcanzado ({MAX_EMBEDDINGS_IN_MEMORY} embeddings). "
+                        f"El código '{code.label}' se guardó en el codebook pero no en la matriz de memoria.")
 
     def _find_semantic_duplicate(self, new_embedding: np.ndarray) -> Optional[str]:
         """Encuentra duplicados semánticos usando la matriz de embeddings actual."""

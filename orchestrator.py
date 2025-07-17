@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import time
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
@@ -108,22 +109,48 @@ class Orchestrator:
             logging.error(f"FATAL: El archivo de entrada de datos crudos '{self.raw_data_path}' no existe.")
             return
 
-        # NUEVO: Lógica de Checkpointing y Reanudación
+        # NUEVO: Lógica de Checkpointing y Reanudación con validación robusta
         coded_insights = []
         processed_ids = set()
         if os.path.exists(self.coded_data_path):
             logging.info(f"Encontrado archivo de checkpoint en {self.coded_data_path}. Reanudando...")
-            with open(self.coded_data_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        coded_insight = json.loads(line)
-                    except json.JSONDecodeError:
-                        logging.error("Línea corrupta en checkpoint; se omitirá para evitar bloqueo de reanudación.")
-                        continue
-                    coded_insights.append(coded_insight)
-                    # Fallback a 'id_fragmento' para checkpoints antiguos
-                    processed_ids.add(coded_insight.get("id") or coded_insight.get("id_fragmento"))
-            logging.info(f"Reanudando. Se cargaron {len(coded_insights)} insights ya procesados.")
+            try:
+                with open(self.coded_data_path, 'r', encoding='utf-8') as f:
+                    for line_num, line in enumerate(f, 1):
+                        line = line.strip()
+                        if not line:  # Skip empty lines
+                            continue
+                        try:
+                            coded_insight = json.loads(line)
+                            # Validar estructura mínima requerida
+                            if not isinstance(coded_insight, dict):
+                                logging.warning(f"Línea {line_num}: Formato inválido, se omite")
+                                continue
+                            if 'id' not in coded_insight and 'id_fragmento' not in coded_insight:
+                                logging.warning(f"Línea {line_num}: Falta ID, se omite")
+                                continue
+                            
+                            coded_insights.append(coded_insight)
+                            # Fallback a 'id_fragmento' para checkpoints antiguos
+                            processed_ids.add(coded_insight.get("id") or coded_insight.get("id_fragmento"))
+                        except json.JSONDecodeError as e:
+                            logging.error(f"Línea {line_num} corrupta en checkpoint: {e}. Se omitirá para evitar bloqueo.")
+                            continue
+                        except Exception as e:
+                            logging.error(f"Error inesperado en línea {line_num}: {e}. Se omitirá.")
+                            continue
+                logging.info(f"Reanudando. Se cargaron {len(coded_insights)} insights válidos de {len(processed_ids)} IDs únicos.")
+            except Exception as e:
+                logging.error(f"Error crítico al leer checkpoint: {e}. Se iniciará desde cero.")
+                # Backup del archivo corrupto y reinicio
+                backup_path = f"{self.coded_data_path}.corrupt.{int(time.time())}"
+                try:
+                    os.rename(self.coded_data_path, backup_path)
+                    logging.info(f"Checkpoint corrupto respaldado como: {backup_path}")
+                except Exception as backup_error:
+                    logging.error(f"No se pudo respaldar checkpoint corrupto: {backup_error}")
+                coded_insights = []
+                processed_ids = set()
 
         insights_to_process = [
             insight for insight in raw_insights if insight.get("id") not in processed_ids
